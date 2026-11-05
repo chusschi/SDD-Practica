@@ -1,0 +1,108 @@
+version: 1
+name: frontend-property-deletion
+summary: Contrato de integración y experiencia para eliminar una propiedad desde listado y detalle.
+
+api_integration:
+  client_name: IPropertiesApi
+  registration: IHttpClientFactory-AddRefitClient
+  endpoint:
+    method: DELETE
+    path: /api/properties/{id}
+    operation_id: deleteProperty
+    route_parameter:
+      name: id
+      type: uuid
+      required: true
+  responses:
+    success_204:
+      body: none
+      ui_effect:
+        - mostrar-confirmacion-de-exito
+        - retirar-propiedad-de-la-vista-o-salir-del-detalle
+    invalid_id_400:
+      schema: ProblemDetails
+      ui_effect:
+        - mostrar-error-sin-confirmar-eliminacion
+    not_found_404:
+      schema: ProblemDetails
+      ui_effect:
+        - informar-que-la-propiedad-ya-no-esta-disponible
+        - sincronizar-listado-o-detalle
+    server_error_500:
+      schema: ProblemDetails
+      ui_effect:
+        - mostrar-error-sin-confirmar-eliminacion
+        - comunicar-estado-parcial-si-la-propiedad-permanece-sin-imagen
+    communication_failure:
+      ui_effect:
+        - no-presentar-exito
+        - sincronizar-la-vista-antes-de-permitir-otro-intento
+  prohibited:
+    - direct-httpclient-in-razor
+    - solicitud-http-delete-arbitraria-a-imageurl
+
+ui_contract:
+  action_locations:
+    - listado-de-propiedades
+    - detalle-de-propiedad
+  reusable_confirmation:
+    required: true
+    identifies_property: true
+    warns_permanent_deletion: true
+    actions:
+      - confirmar
+      - cancelar
+      - cerrar
+    cancel_or_close:
+      request_sent: false
+      data_changed: false
+  request_behaviour:
+    send_only_after_confirmation: true
+    prevent_duplicate_requests_while_in_progress: true
+  image_behaviour:
+    imageurl_null:
+      deletion_allowed: true
+    imageurl_present:
+      reference_is_authorization: false
+      backend_uses_existing_authorized_storage_integration: true
+      verify_integration_availability_and_authority_for_reference: true
+      generic_delete_to_arbitrary_imageurl: prohibited
+      image_deletion_failure_keeps_property: true
+      persistence_failure_after_image_deletion:
+        verify_property_remains_before_compensation: true
+        attempt_restore_using_existing_authorized_integration: true
+        restore_failure:
+          property_remains: true
+          property_has_image: false
+          report_success: false
+          communicate_partial_state: true
+        no_atomicity_or_remote_rollback_guarantee: true
+  list_behaviour:
+    after_success:
+      remove_deleted_property: true
+      handle_last_item_with_existing_empty_or_pagination_behaviour: true
+    after_404:
+      synchronize_stale_property: true
+  detail_behaviour:
+    after_success:
+      deleted_property_not_available_for_interaction: true
+  error_behaviour:
+    never-report-unconfirmed-deletion-as-success: true
+    backend_persistence_failure:
+      restore_image_attempted_when_property_is_confirmed_present: true
+      restore_failure_reported_as_partial_state: true
+    communication-result-uncertain:
+      synchronize-before-retry: true
+
+validation:
+  card_action:
+    prevent_accidental_card_navigation: true
+  scenarios:
+    - confirmacion-cancelada-sin-solicitud
+    - eliminacion-exitosa-desde-listado
+    - eliminacion-exitosa-desde-detalle
+    - bloqueo-de-solicitudes-duplicadas
+    - error-404-con-sincronizacion
+    - error-del-servidor-sin-falso-exito
+    - resultado-de-comunicacion-incierto-con-sincronizacion
+    - propiedad-sin-imageurl

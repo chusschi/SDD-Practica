@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: Realtor API - Eliminación de propiedades
+  version: 0.1.0
+  description: >-
+    Contrato público para eliminar permanentemente una propiedad. El recurso
+    señalado por imageUrl se elimina mediante la integración existente y
+    autorizada antes de persistir la eliminación del registro. Si falla el
+    borrado de imagen, la propiedad permanece. Si falla la persistencia tras
+    borrar la imagen, se intenta restaurarla; si también falla la restauración,
+    la propiedad permanece sin imagen y se informa el estado parcial sin éxito.
+    La persistencia y el almacenamiento no son atómicos entre sí.
+servers:
+  - url: http://localhost:5023
+paths:
+  /api/properties/{id}:
+    delete:
+      operationId: deleteProperty
+      summary: Elimina permanentemente una propiedad existente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador UUID canónico de la propiedad.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Propiedad eliminada; respuesta sin cuerpo.
+        '400':
+          description: El identificador no tiene formato UUID válido.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: No existe una propiedad con el identificador proporcionado.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: >-
+            No se pudo eliminar el recurso de imagen o persistir la eliminación
+            de la propiedad. Ante fallo de persistencia se intenta restaurar la
+            imagen si se confirma que la propiedad permanece. Si la restauración
+            falla, el detalle comunica que la propiedad permanece sin imagen.
+            La respuesta nunca representa éxito ni garantiza rollback remoto.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+components:
+  schemas:
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+          nullable: true
+        instance:
+          type: string
+          nullable: true
